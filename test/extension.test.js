@@ -385,6 +385,17 @@ function makeEditor(document) {
   };
 }
 
+async function waitFor(predicate, timeoutMs = 2000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (predicate()) {
+      return true;
+    }
+    await new Promise(resolve => setTimeout(resolve, 25));
+  }
+  return predicate();
+}
+
 const originalLoad = Module._load;
 
 Module._load = function (request, ...args) {
@@ -1210,7 +1221,7 @@ test('rescan syncs the review view badge and message', async t => {
   api.store.invalidate(vscode.Uri.file(path.join(root, 'app.ts')));
 
   api.scheduleRescan();
-  await new Promise(resolve => setTimeout(resolve, 600));
+  await waitFor(() => api.reviewTree.entries.length === 1);
 
   assert.equal(api.reviewTree.entries.length, 1);
   assert.equal(api.reviewView.badge.value, 1);
@@ -1328,7 +1339,7 @@ test('sidecar watcher event triggers a rescan that populates the tree', async t 
   api.store.invalidate(vscode.Uri.file(path.join(root, 'app.ts')));
 
   await events['sidecarCreate'].fire(vscode.Uri.file(path.join(root, 'app.ts.comment')));
-  await new Promise(resolve => setTimeout(resolve, 600));
+  await waitFor(() => api.reviewTree.entries.length === 1);
 
   assert.equal(api.reviewTree.entries.length, 1);
   assert.equal(api.reviewView.badge.value, 1);
@@ -1467,7 +1478,7 @@ test('editing an annotated line live-updates the review tree and badge', async t
     document,
     contentChanges: [{ rangeOffset: offset, rangeLength: target.length, text: 'if (!ready) start();' }],
   });
-  await new Promise(resolve => setTimeout(resolve, 150)); // advance the 100 ms debounce
+  await waitFor(() => api.reviewTree.entries.length === 1 && api.reviewView.badge.value === 1);
 
   assert.equal(api.reviewTree.entries.length, 1);
   assert.equal(api.reviewTree.entries[0].status, 'review');
